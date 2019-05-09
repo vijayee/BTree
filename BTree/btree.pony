@@ -1,25 +1,26 @@
-class BTreeIterator[A: Comparable[A]]
+use "collections"
+class BTreeIterator[A: Comparable[A] #read]
   var _i: USize = 0
-  var _node: BTReeNode
-  var _current (BTreeIterator | None) = None
+  var _node: BTreeNode[A]
+  var _current: (BTreeIterator[A] | None) = None
 
-  new create(node': BTReeNode[A]) =>
+  new create(node': BTreeNode[A]) =>
     _node = node'
 
   fun has_next() : Bool =>
     _i <= _node.size()
 
-  fun next() : A ? =>
+  fun ref next() : A ? =>
     if has_next() then
       if _i == _node.size() then
-        _yield()
+        _yield()?
       elseif not _node.isLeaf() then
         match _current
           | None =>
-            let current': BTreeIterator  = _node._children[_i].traverse()
+            let current': BTreeIterator[A]  = _node.children(_i)?.traverse()
             _current = current'
             _currentNext()?
-          | let current: BTreeIterator =>
+          | let current: BTreeIterator [A] =>
             _currentNext()?
         end
       else
@@ -29,13 +30,13 @@ class BTreeIterator[A: Comparable[A]]
       error
     end
 
-  fun _yield : A ? =>
+  fun  ref _yield() : A ? =>
     if  (not _node.isLeaf()) and (_i == _node.size()) then
       match _current
         | None =>
-          let current': BTreeIterator  = _node._children[_i].traverse()
+          let current': BTreeIterator[A]  = _node.children(_i)?.traverse()
           _currentNext()?
-        | let current: BTreeIterator =>
+        | let current: BTreeIterator[A] =>
           _currentNext()?
       end
     elseif _i < _node.size() then
@@ -44,11 +45,11 @@ class BTreeIterator[A: Comparable[A]]
       error
     end
 
-  fun _currentNext() : A ? =>
+  fun ref _currentNext() : A ? =>
     match _current
-      | let current: BTreeIterator =>
-        if _current'.has_next() then
-          _current.next()?
+      | let current: BTreeIterator[A] =>
+        if current.has_next() then
+          current.next()?
         else
           _current = None
           _yield()?
@@ -58,7 +59,7 @@ class BTreeIterator[A: Comparable[A]]
     end
 
 
-class BTreeNode [A: Comparable[A]]
+class BTreeNode [A: Comparable[A] #read]
   let _values : Array[A]
   let _degree: USize
   var _isLeaf : Bool
@@ -67,24 +68,32 @@ class BTreeNode [A: Comparable[A]]
   new create(degree': USize, isLeaf': Bool = true) =>
     _degree = degree'
     _isLeaf = isLeaf'
-    _values = Array[A](2 *(degree - 1))
-    _children = Array[BTreeNode[A]](2 * degree)
+    _values = Array[A](2 * (_degree - 1))
+    _children = Array[BTreeNode[A]](2 * _degree)
 
   fun apply(i: USize) : this->A ? =>
     _values(i)?
 
-  fun _init(value: A) ? =>
+  fun ref update(i: USize, value: A) : A^ ? =>
+    if (i == _values.size()) then
+      _values.push(value)
+      value
+    else
+      _values(i)? = value
+    end
+
+  fun ref _init(value: A) ? =>
     if _values.size() != 0 then
       error
     end
     _values.push(value)
-  fun children(index: USize) : BTreeNode[A]? =>
+  fun ref children(index: USize) : BTreeNode[A]? =>
     _children(index)?
 
   fun isFull() : Bool =>
-    _values.size() == 2 * (_degree -1)
-  fun traverse() : BTreeIterator =>
-    BTreeIterator(this)
+    _values.size() == (2 * (_degree -1))
+  fun ref traverse() : BTreeIterator[A] =>
+    BTreeIterator[A](this)
 
   fun size() : USize =>
     _values.size()
@@ -92,32 +101,30 @@ class BTreeNode [A: Comparable[A]]
   fun isLeaf() : Bool =>
     _isLeaf
 
-  fun _addChild(node BTreeNode[A]) ? =>
-    if _children.size() < (2 * degree) then
+  fun ref _addChild(node: BTreeNode[A]) ? =>
+    if _children.size() < (2 * _degree) then
       _children.unshift(node)
     else
       error
     end
-  fun _split(index: USize, child: BTReeNode) ? =>
-    let newNode : BTReeNode = BTReeNode(_degree, child.isLeaf())
-    let i : USize = 0
+  fun ref _split(index: USize, child: BTreeNode[A]) ? =>
+    let newNode : BTreeNode[A] = BTreeNode[A](_degree, child.isLeaf())
 
-    for i in Range((degree - 1),  2 * (_degree - 1)) do
-      newNode._values.push(child._values.pop())
+    for i in Range((_degree - 1),  2 * (_degree - 1)) do
+      newNode._values.push(child._values.pop()?)
     end
 
     if child.isLeaf() then
-      i = 0
-      for i in Range(degree, (2 * _degree)) do
-        newNode._children.push(child._children.pop())
+      for i in Range(_degree, (2 * _degree)) do
+        newNode._children.push(child._children.pop()?)
       end
     end
 
     for i in Range(_values.size(), (index + 2), -1) do
-      if (i+1) >= _children.size() then
+      if (i + 1) >= _children.size() then
         _children.push(_children(i)?)
       else
-        _children(i + 1)? = _children(i)
+        _children(i + 1)? = _children(i)?
       end
     end
 
@@ -127,18 +134,18 @@ class BTreeNode [A: Comparable[A]]
       if (i) >= _children.size() then
         _values.push(_values(i)?)
       else
-        _values(i + 1)? = _values(i)
+        _values(i + 1)? = _values(i)?
       end
     end
 
-    _values(i)? = _values(_degree - 1)
+    _values(index)? = _values(_degree - 1)?
 
-  fun insert(value: A) ? =>
+  fun ref insert(value: A) ? =>
     var i = _degree - 1
     if _isLeaf then
       while ((i >= 0) and (_values(i)? > value)) do
         if (i + 1) >= _values.size() then
-          values.push(_values(i)?)
+          _values.push(_values(i)?)
         else
           _values(i + 1)? = _values(i)?
         end
@@ -155,44 +162,40 @@ class BTreeNode [A: Comparable[A]]
       end
       if _children(i + 1)?.isFull() then
         _split(i + 1, _children(i + 1)?)?
-        if _values(i + 1)? then
+        if _values(i + 1)? < value then
           i = i + 1
         end
       end
-      _children(i + 1).insert()
+      _children(i + 1)?.insert(value)?
     end
   fun _findValue(value: A): USize ? =>
-    var index = 0
-    while (index < _values.size()) and (_values(index)? == A) do
+    var index: USize = 0
+    while (index < _values.size()) and (_values(index)? < value) do
       index = index + 1
     end
     index
 
-  fun _predecessor(index: USize) : A ? =>
-    let current : BTReeNode = _children(index)
+  fun ref _predecessor(index: USize) : A ? =>
+    var current : BTreeNode[A] = _children(index)?
     while current.isLeaf() do
       current = current.children(current.size())?
     end
     current(current.size() - 1)?
 
-  fun _successor(index: USize)? : A =>
-    let current : BTReeNode = _children(index + 1)
+  fun ref _successor(index: USize) : A ? =>
+    var current : BTreeNode[A] = _children(index + 1)?
     while not current.isLeaf() do
       current = current.children(0)?
     end
     current(0)?
 
-  fun _merge (index: USize) ? =>
-    var child : BTreeNode = _children(index)?
-    var sibling : BTreeNode = _children(index + 1)?
+  fun ref _merge (index: USize) ? =>
+    var child : BTreeNode[A] = _children(index)?
+    var sibling : BTreeNode[A] = _children(index + 1)?
 
     child(_degree - 1)? = _values(index)?
     for i in Range(0, sibling.size()) do
-      if ((i + _degree) >= childe.size()) then
-        child.push(sibling(i)?)
-      else
-        child(i + _degree)? = sibling(i)?
-      end
+      child(i + _degree)? = sibling(i)?
     end
 
     if not child.isLeaf() then
@@ -213,9 +216,9 @@ class BTreeNode [A: Comparable[A]]
       _children(i-1)? = _children(i)?
     end
 
-  fun _borrowFromPrevious(index: USize) ? =>
-      var child : BTreeNode = _children(index)?
-      var sibling : BTreeNode = _children(index - 1)?
+  fun ref _borrowFromPrevious(index: USize) ? =>
+      var child : BTreeNode[A] = _children(index)?
+      var sibling : BTreeNode[A] = _children(index - 1)?
 
       for i in Range(child.size() - 1, -1, -1) do
         child(i + 1)? = child(i)?
@@ -224,45 +227,45 @@ class BTreeNode [A: Comparable[A]]
       if (not child.isLeaf()) then
         for i in Range(child.size(), -1, -1) do
           if ((i + 1) >= child._children.size()) then
-            child._children.push(child._children(i))
+            child._children.push(child._children(i)?)
           else
-            child._children(i + 1) = child._children(i)
+            child._children(i + 1)? = child._children(i)?
           end
         end
       end
 
-    child(0)? = _keys(index - 1)?
+    child(0)? = _values(index - 1)?
     if not child.isLeaf() then
-      child._children(0)? = sibling._children.pop()
+      child._children(0)? = sibling._children.pop()?
     end
     _values(index - 1)? = sibling._values.pop()?
 
-  fun _borrowFromNext(index: USize)? =>
-    var child : BTreeNode = _children(index)?
-    var sibling : BTreeNode = _children(index + 1)?
+  fun ref _borrowFromNext(index: USize)? =>
+    var child : BTreeNode[A] = _children(index)?
+    var sibling : BTreeNode[A] = _children(index + 1)?
 
     child._values.push(_values(index)?)
 
     if not child.isLeaf() then
-      child._children(child.size() + 1) = sibling._children.shift()
+      child._children(child.size() + 1)? = sibling._children.shift()?
     end
 
-    _keys(index)? = sibling._values.shift()
+    _values(index)? = sibling._values.shift()?
 
     for i in Range(1, sibling.size()) do
       sibling._values(i - 1)? = sibling._values(i)?
     end
 
     if not sibling.isLeaf() then
-      for i in Range(1, sibling.size()) then
+      for i in Range(1, sibling.size()) do
         sibling._children(i - 1)? = sibling._children.delete(i)?
       end
     end
 
-  fun _fill(index: USize) ? =>
-    if (index != 0) and (_children(index - 1)? >= _degree) then
+  fun ref _fill(index: USize) ? =>
+    if (index != 0) and (_children(index - 1)?.size() >= _degree) then
       _borrowFromPrevious(index)?
-    elseif (index != size()) and (_children(index + 1).size() >= _degree) then
+    elseif (index != size()) and (_children(index + 1)?.size() >= _degree) then
       _borrowFromNext(index)?
     else
       if index != size() then
@@ -272,14 +275,14 @@ class BTreeNode [A: Comparable[A]]
       end
     end
 
-  fun remove(value: A) ? =>
+  fun ref remove(value: A) ? =>
     let index : USize = _findValue(value)?
-    if (index < _values.size()) and (_values(index)? == A) then
+    if (index < _values.size()) and (_values(index)? == value) then
       if _isLeaf then
-        for i of Range(index + 1, _values.size()) then
+        for i in Range(index + 1, _values.size()) do
           _values(i - 1)? = _values(i)?
         end
-        _values.pop()
+        _values.pop()?
       else
         if (_children(index + 1)?.size() >= _degree) then
             let predecessor =  _predecessor(index)?
@@ -288,10 +291,10 @@ class BTreeNode [A: Comparable[A]]
         elseif (_children(index + 1)?.size() >= _degree) then
           let successor =  _successor(index)?
           _values(index)? = successor
-          _children(index + 1)?.remove(successor)
+          _children(index + 1)?.remove(successor)?
         else
           _merge(index)?
-          _children(index).remove(value)
+          _children(index)?.remove(value)?
         end
       end
     else
@@ -305,32 +308,32 @@ class BTreeNode [A: Comparable[A]]
       end
 
       if (flag and (index > _values.size())) then
-        _children(index - 1).remove(value)?
+        _children(index - 1)?.remove(value)?
       else
-        _children(index).remove(value)?
+        _children(index)?.remove(value)?
       end
     end
 
-class BTree [A: Comparable[A]]
-  var _root : BTreeNode
+class BTree [A: Comparable[A] #read]
+  var _root : BTreeNode[A]
   let _degree: USize
 
   new create (degree': USize) =>
     _degree = degree'
     _root = BTreeNode[A](_degree, true)
 
-  fun insert(value: A) ? =>
+  fun ref insert(value: A) ? =>
     if _root.size() == 0 then
-      _root._init(value)
+      _root._init(value)?
     elseif _root.isFull() then
       let newRoot = BTreeNode[A](_degree, false)
-      newRoot._addChild(_root)
-      newRoot._split(0, root)?
+      newRoot._addChild(_root)?
+      newRoot._split(0, _root)?
 
       if  value > newRoot(0)? then
-        newRoot.children(1).insert(value)?
+        newRoot.children(1)?.insert(value)?
       else
-        newRoot.children(0).insert(value)?
+        newRoot.children(0)?.insert(value)?
       end
 
       _root = newRoot
@@ -338,10 +341,13 @@ class BTree [A: Comparable[A]]
       _root.insert(value)?
     end
 
-  fun remove (value: A) =>
-    _root.remove(value)
+  fun ref traverse() : BTreeIterator[A] =>
+    _root.traverse()
+
+  fun ref remove (value: A) ?=>
+    _root.remove(value)?
     if _root.size() == 0 then
       if not _root.isLeaf() then
-        _root = _root.children(0)
+        _root = _root.children(0)?
       end
     end
