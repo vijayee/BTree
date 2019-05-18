@@ -110,63 +110,80 @@ class BTreeNode [A: Comparable[A] #read]
   fun ref _split(index: USize, child: BTreeNode[A]) ? =>
     let newNode : BTreeNode[A] = BTreeNode[A](_degree, child.isLeaf())
 
+    //copy last half of the keys to the new node
     for i in Range((_degree - 1),  2 * (_degree - 1)) do
       newNode._values.push(child._values.pop()?)
     end
-
-    if child.isLeaf() then
-      for i in Range(_degree, (2 * _degree)) do
-        newNode._children.push(child._children.pop()?)
+    //copy last half of children to new node
+    if (child.isLeaf() and (child._children.size() > 0)) then
+      if (child._children.size() - 1) >= _degree then
+        for i in Range(_degree, child._children.size()) do
+          newNode._children.push(child._children.pop()?)
+        end
       end
     end
 
-    for i in Range(_values.size(), (index + 2), -1) do
-      if (i + 1) >= _children.size() then
-        _children.push(_children(i)?)
+    //create space for new child  by moving all children forward
+    for i in Range[I64]((if (_degree.i64() - 1) >=  _children.size().i64() then _children.size().i64() - 1 else _degree.i64() - 1 end), index.i64() - 1, -1) do
+      if (i.usize() + 1) >= _children.size() then
+        _children.push(_children(i.usize())?)
       else
-        _children(i + 1)? = _children(i)?
+        _children(i.usize() + 1)? = _children(i.usize())?
       end
     end
 
-    _children(index + 1)? = newNode
+    // add new node to children
+    if (index + 1) >= _children.size() then
+      _children.push(newNode)
+    else
+      _children(index + 1)? = newNode
+    end
 
-    for i in Range(_values.size() - 1, (index + 1) , -1) do
-      if (i) >= _children.size() then
-        _values.push(_values(i)?)
+    // A value of the child will move to this node. Find location of
+    // new value and move all greater values one space ahead
+    for i in Range[I64](_values.size().i64() - 1, index.i64() - 1 , -1) do
+      if (i.usize() + 1) >= _values.size() then
+        _values.push(_values(i.usize())?)
       else
-        _values(i + 1)? = _values(i)?
+        _values(i.usize() + 1)? = _values(i.usize())?
       end
     end
 
-    _values(index)? = _values(_degree - 1)?
+    if (index) >= _values.size() then
+      _values.push(child._values(child._values.size() - 1)?)
+    else
+      _values(index)? = child._values(child._values.size() - 1)?
+    end
+    child._values.remove(child._values.size() - 1, 1)
+
 
   fun ref insert(value: A) ? =>
-    var i = _degree - 1
+    var i: I64 = _values.size().i64() - 1
     if _isLeaf then
-      while ((i >= 0) and (_values(i)? > value)) do
-        if (i + 1) >= _values.size() then
-          _values.push(_values(i)?)
+      while ((i >= 0) and (_values(i.usize())? > value)) do
+        if (i.usize() + 1) >= _values.size() then
+          _values.push(_values(i.usize())?)
         else
-          _values(i + 1)? = _values(i)?
+          _values(i.usize() + 1)? = _values(i.usize())?
         end
         i = i - 1
       end
-      if (i + 1) >= _values.size() then
+      if (i.usize() + 1) >= _values.size() then
         _values.push(value)
       else
-        _values(i + 1)? = value
+        _values(i.usize() + 1)? = value
       end
     else
-      while ((i >= 0) and (_values(i)? > value)) do
+      while ((i >= 0) and (_values(i.usize())? > value)) do
         i = i - 1
       end
-      if _children(i + 1)?.isFull() then
-        _split(i + 1, _children(i + 1)?)?
-        if _values(i + 1)? < value then
+      if _children(i.usize() + 1)?.isFull() then
+        _split(i.usize() + 1, _children(i.usize() + 1)?)?
+        if _values(i.usize() + 1)? < value then
           i = i + 1
         end
       end
-      _children(i + 1)?.insert(value)?
+      _children(i.usize() + 1)?.insert(value)?
     end
   fun _findValue(value: A): USize ? =>
     var index: USize = 0

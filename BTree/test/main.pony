@@ -18,11 +18,11 @@ class iso _TestAdd is UnitTest
   fun apply(t: TestHelper) =>
     let now = Time.now()
     let gen = Rand(now._1.u64(), now._2.u64())
-    let numbers: Array[U8] = Array[U8](43)
-    let sorted: BTree[U8] = BTree[U8](6)
+    let numbers: Array[I32] = Array[I32](43)
+    let sorted: BTree[I32] = BTree[I32](6)
     try
       for i in Range(0, 43) do
-        let number: U8 = gen.u8()
+        let number: I32 = gen.i32()
         t.log("number " + number.string())
         numbers.push(number)
         sorted.insert(number)?
